@@ -23,10 +23,19 @@ void captureImages(std::vector<cv::Mat> &vimg)
 	CCam cam;
 
 	int width, height, channel;
+#if defined(CALIBRATION_USE_VIDEO)
+	if (!cam.OpenVideo("/home/deokhwan/Workspace/SLAM/ATAM/data/20171209_221613.mp4",
+                width, height, channel)) {
+		printf("camera error\n");
+		exit(1);
+	}
+#else
 	if (!cam.Open(width, height, channel)) {
 		printf("camera error\n");
 		exit(1);
 	}
+#endif
+
 
 	cv::Mat im = cv::Mat(cv::Size(width, height), channel == 1 ? CV_8UC1 : CV_8UC3);
 

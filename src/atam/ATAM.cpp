@@ -119,14 +119,19 @@ void CATAM::mainLoop(void)
 		// get FPS
 		double duration = double(timer.Pop());
 		mFPS = 1.0 / duration * 1000.0;
-		LOGOUT("--frame %d--\n", mFrameNumber);
+		LOGOUT("--frame %d--", mFrameNumber);
+		LOGOUT(": %s\n", ((mState==STATE::STOP) ? "STOP" : \
+                           mState==STATE::INIT  ? "INIT" : \
+                           mState==STATE::TAM   ? "TAM"  : \
+                           mState==STATE::RELOCAL ? "RELOCAL" : "CLOSE"));
+
 		++mFrameNumber;
 
 		// get keyboard input
-		int mouse = mMouse;
+		//int mouse = mMouse;
 
 		// user's operation
-		if (operation(cv::waitKey(1))) {
+		if (operation(cv::waitKey( 250))) {
 			break;
 		}
 
@@ -395,7 +400,7 @@ bool CATAM::matchKeyframe(void)
 {
 	// compute descriptors of current frame
 	std::vector<cv::KeyPoint> &vKpt = mData.vKpt;
-	if (vKpt.size() < PARAMS.MINPTS) {
+	if ((int) vKpt.size() < PARAMS.MINPTS) {
 		return false;
 	}
 	cv::Mat vDesc;
@@ -403,7 +408,7 @@ bool CATAM::matchKeyframe(void)
 
 	// get nearest keyframe
 	const sKeyframe& kf = mData.map.GetNearestKeyframe(mPose);
-	if (kf.vKpt.size() < PARAMS.MINPTS) {		// not enough keypoint in keyframe
+	if ((int) kf.vKpt.size() < PARAMS.MINPTS) {		// not enough keypoint in keyframe
 		return false;
 	}
 
@@ -426,7 +431,7 @@ bool CATAM::matchKeyframe(void)
 		}
 	}
 
-	if (vPt2d.size() > PARAMS.MINPTS) {	// if enough good correspondences
+	if ((int) vPt2d.size() > PARAMS.MINPTS) {	// if enough good correspondences
 
 		// compute camera pose
 		sPose tmpPose = mPose;
@@ -690,7 +695,7 @@ bool CATAM::makeMap(void)
 	}
 
 	// if not enough points
-	if (vStart.size() < PARAMS.MINPTS) {
+	if ((int) vStart.size() < PARAMS.MINPTS) {
 		return false;
 	}
 
@@ -879,7 +884,7 @@ void CATAM::trackAndMap(void)
 */
 void CATAM::whileInitialize(void)
 {
-	if (mData.vPrevPt.size() > PARAMS.MINPTS) {	// if tracking points exist
+	if ((int)mData.vPrevPt.size() > PARAMS.MINPTS) {	// if tracking points exist
 		trackFrame();
 	}
 	else {

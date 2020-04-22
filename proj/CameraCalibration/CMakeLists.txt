@@ -16,6 +16,8 @@ if( USE_CHESSBOARD )
 	add_definitions( -DCHESSBOARD )
 endif()
 
+add_definitions(-DCALIBRATION_USE_VIDEO)
+
 # target
 add_executable(
 	${PROJ_NAME}
@@ -31,4 +33,5 @@ target_link_libraries(
 	${PROJ_NAME}
     ${OpenCV_LIBS}
 	${CAM_LIBS}
+    pthread
 )

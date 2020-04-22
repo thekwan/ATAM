@@ -25,4 +25,5 @@ target_link_libraries(
 	${PROJ_NAME}
     ${OpenCV_LIBS}
 	${CAM_LIBS}
+    pthread
 )

@@ -49,4 +49,5 @@ target_link_libraries(
     ${OpenCV_LIBS}
 	${CAM_LIBS}
 	${CLAPACK_LIBS}
+    pthread
 )

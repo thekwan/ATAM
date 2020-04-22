@@ -21,10 +21,12 @@ endif( )
 ######################################
 
 # OpenCV
+set(OpenCV_DIR "/home/deokhwan/Tools/OpenCV/v3.4.9/share/OpenCV")
 find_package( OpenCV REQUIRED )
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # CLAPACK
+set(CLAPACK_DIR "/home/deokhwan/Tools/clapack-3.2.1-CMAKE/build/")
 find_package( CLAPACK REQUIRED )
 set( CLAPACK_LIBS lapack f2c blas )
 
