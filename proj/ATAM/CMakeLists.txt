@@ -24,6 +24,8 @@ if( USE_CHESSBOARD )
 	add_definitions( -DCHESSBOARD )
 endif()
 
+add_definitions( -DEND_PROG_AT_LAST_FRAME )
+
 # target
 add_executable(
 	${PROJ_NAME}

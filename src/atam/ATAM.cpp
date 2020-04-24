@@ -25,6 +25,9 @@ CATAM::CATAM()
 */
 void CATAM::Start(void)
 {
+    // key file open
+    keyFileOpen();
+
 	// initialization
 	if (!init()) {
 		return;
@@ -38,6 +41,9 @@ void CATAM::Start(void)
 #else
 	mainLoop();
 #endif
+
+    // key file close
+    keyFileClose();
 }
 
 
@@ -111,6 +117,11 @@ void CATAM::mainLoop(void)
 
 		// get color image and convert it to gray scale
 		mCam.Get(mImg);
+#if defined(END_PROG_AT_LAST_FRAME)
+        if (mImg.empty()) {
+            break;
+        }
+#endif
 		cv::cvtColor(mImg, mGImg, cv::COLOR_BGR2GRAY);
 
 		// process
@@ -131,7 +142,7 @@ void CATAM::mainLoop(void)
 		//int mouse = mMouse;
 
 		// user's operation
-		if (operation(cv::waitKey( 250))) {
+		if (operation(cv::waitKey(1))) {
 			break;
 		}
 
@@ -257,6 +268,11 @@ void CATAM::reset(void)
 @brief		set keyframe for tracking
 @retval		set or not
 */
+// @DH,Kim
+// 'setKeyframe' does two things.
+// i) Add points having specific-ID. (w/ ORB descriptor)
+// ii) Add NewPoint into Track (data-structure).
+// optional) remove NoID points from Track.
 bool CATAM::setKeyframe(void)
 {
 	// remove points not mapped 
@@ -314,6 +330,10 @@ bool CATAM::setKeyframe(void)
 	}
 
 	// compute descriptor and add it to keyframe
+    // @DH,Kim
+    // "Why we don't have to get ORB descriptor for NewPoint?"
+    // -> the NewPoint can be discarded in the process of tracking.
+    //    So, it may be unnecesary to extract descriptors for these.
 	mGImg.copyTo(tmpKf.img);
 	cv::Mat vDesc;
 	if (tmpKf.vKpt.size() != 0) {
@@ -396,6 +416,14 @@ int CATAM::trackFrame(void)
 @brief		match with keyframe near mPose amd recover points
 @retval		matched or not
 */
+// @DH,Kim
+// 1) Get nearest keyframe by using pose info(mPose).
+// 2) ORB desc. matching btw current frame and (nearest) keyframe.
+// 3) Find good-matching (using matching distance threshold).
+// 4) SolvePnPRansac()
+// 5) Add specific inlier points, which are being untracked in current frame even though 
+//    these are good inlier points, as new tracked point.
+// optional) if current state is relocal, set the new pose as current frame's pose info.
 bool CATAM::matchKeyframe(void)
 {
 	// compute descriptors of current frame
@@ -431,10 +459,13 @@ bool CATAM::matchKeyframe(void)
 		}
 	}
 
+    /* DH,Kim
+     * I don't know why we should re-estimate pose from solvePnPRansac?
+     */
 	if ((int) vPt2d.size() > PARAMS.MINPTS) {	// if enough good correspondences
 
 		// compute camera pose
-		sPose tmpPose = mPose;
+		sPose tmpPose = mPose;  // Is it necessary? DH,Kim
 		const int iteration = 100;
 		const double confidence = 0.98;
 		std::vector<int> vInliers;
@@ -455,6 +486,18 @@ bool CATAM::matchKeyframe(void)
 				for (std::list<sTrack>::iterator it = mData.vTrack.begin(),
 					itend = mData.vTrack.end();	it != itend; ++it) {
 
+                    /* is this correct method?
+                     * Should we compare the vID[pos] and corresponding vKpt's ID?
+                     * (to check corresponding vKpt'ID, we should find 2D point 
+                     * correspond to the vKpt in Track data structure.
+                     * Below method is only check vID[pos] exists in vTrack.
+                     * it is possible that vKptID and kf.vKptID is not same, 
+                     * even though vID[pos] is in the vTrack.
+                     * @DH,Kim
+                     * -> it seems reasonable, because we need to check only the inlier point,
+                     *    which is identified by solvePnPRansac(), exists in Tracking point list.
+                     *    If doesn't exist, we add them as new Tracking point.
+                     */
 					if (it->ptID == vID[pos]) {
 						found = true;
 						break;
@@ -486,6 +529,12 @@ bool CATAM::matchKeyframe(void)
 @brief		compute camera pose
 @retval		computed or not
 */
+// @DH,Kim
+// 1) Pose estimation with 2D-3D point correspondences.
+//    i) 2D points: tracked point of current frame.
+//    ii) 3D points: origin of tracked point has 3D coordinate, if it has point ID.
+// 2) Checks reprojection error and discards the point info. ONLY from Track data structure.
+//    TODO: CHECK
 bool CATAM::computePose(void)
 {
 	// pose estimation
@@ -546,6 +595,11 @@ bool CATAM::computePose(void)
 @param[out]	rvec	rotation vector
 @param[out]	tvec	translation vector
 */
+/* DH,Kim
+ * This function is called only when state is INIT.
+ * In this state, initial pose is meaningless. So, we can consider the relative pose value 
+ * gueessed from Essential matrix as absolute pose value for second keyframe.
+ */
 void CATAM::computePosefromE(
 	const std::vector<cv::Point2f> &vUnPt1,
 	const std::vector<cv::Point2f> &vUnPt2,
@@ -678,6 +732,18 @@ bool CATAM::initialBA(
 @brief		mapping
 @retval		new map is generated or not
 */
+// @DH,Kim
+// 1) Triangulation for 'successful' NoID tracking point.
+//    'successful' means that we can track the point from last keyframe to current frame.
+//    i) last keyframe has 'pose' info. 
+//    ii) current keyframe also has 'pose' info 
+//       (at INIT, the pose info. is from 'computePosefromE'.
+//        at others, the pose info is from 'ComputePose'
+// 2) Error check (reprojection error) and add only inlier points into 
+//     i) map data-structure. (w/ ORB descriptor)
+//     ii) last keyframe data structure. (w/ changed point ID)
+// 3) Update point ID for Track data structure.
+//    (it seems only for setKeyframe().)
 bool CATAM::makeMap(void)
 {
 	// select start and end points from new tracks
@@ -1348,15 +1414,20 @@ void CATAM::mousedummy(int event, int x, int y, int flags, void* param)
 @param[in]	input key
 @retval		ESC is pressed or not
 */
-bool CATAM::operation(const int key)
+bool CATAM::operation(int key)
 {
+    readKey(key);
+
 	if (key == ' ' || mMouse == ' ') {		// change state
+        writeKey("[SPACE]");
 		changeState();
 	}
 	else if (key == 'r' || mMouse == 'r') {	// reset
+        writeKey("[R]");
 		reset();
 	}
 	else if (key == 'n' || mMouse == 'n') {
+        writeKey("[N]");
 		if (mState == STATE::RELOCAL) {		// change image for relocalization
 			changeRelocalImage();
 		}
@@ -1365,15 +1436,75 @@ bool CATAM::operation(const int key)
 		}
 	}
 	else if (key == 'c' || mMouse == 'c') {
+        writeKey("[C]");
 		++mChallengeNumber;
 	}
-	else if (key == 'q' || mMouse == 'q') {	// exit
+	else if (key == 'q' || mMouse == 'q') {	// exit writeKey("[Q]");
+        writeKey("[Q]");
 		return true;
 	}
+    else {
+        writeKey("[NOP]");
+    }
 
 	mMouse = -1;	// clear mouse data
 
 	return false;
+}
+
+void CATAM::keyFileOpen(void)
+{
+    read_key_fs.open(key_fname, std::ios::in);
+    
+    if (! read_key_fs.is_open()) {
+        write_key_fs.open(key_fname, std::ios::out);
+        std::cout << "------ KEY WRITE MODE -----" << std::endl;
+    }
+    else {
+        std::cout << "------ KEY READ MODE  -----" << std::endl;
+    }
+}
+
+void CATAM::keyFileClose(void)
+{
+    write_key_fs.close();
+    read_key_fs.close();
+}
+
+void CATAM::writeKey(std::string cmd_name) 
+{
+    if (write_key_fs.is_open()) {
+        write_key_fs << cmd_name << std::endl;
+    }
+}
+
+void CATAM::readKey(int &key)
+{
+    if (read_key_fs.is_open()) {
+        std::string line;
+        read_key_fs >> line;
+        //std::cout << "line = " << line << std::endl;
+        if (line == "[SPACE]") {
+            key = ' ';
+        }
+        else if (line == "[R]") {
+            key = 'r';
+        }
+        else if (line == "[N]") {
+            key = 'n';
+        }
+        else if (line == "[C]") {
+            key = 'c';
+        }
+        else if (line == "[Q]") {
+            key = 'q';
+        }
+        else if (line == "[NOP]") {
+        }
+        else {
+            std::cerr << "[ERROR] Unknown key command: \'" << line << "\'" << std::endl;
+        }
+    }
 }
 
 /*!

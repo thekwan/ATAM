@@ -263,8 +263,13 @@ bool CCam::Get(cv::Mat &img)
 		mCap >> mImg;
 		
 		if (mVideo & mImg.empty()){		// for video
+#if defined(END_PROG_AT_LAST_FRAME)
+            img = mImg.clone();
+            return false;
+#else
 			mCap.open(mName);
 			mCap >> mImg;
+#endif
 		}
 	}
 	else{

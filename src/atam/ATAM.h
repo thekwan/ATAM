@@ -78,12 +78,18 @@ private:
 	void generateButton(void);
 	void mouse(int event, int x, int y, int flags);
 	static void mousedummy(int event, int x, int y, int flags, void* param);
-	bool operation(const int key);
+	bool operation(int key);
 	void draw(cv::Mat &img);
 	void drawProcess(cv::Mat &img) const;
 	void drawMap(cv::Mat &img) const;
 	void drawGrid(cv::Mat &img) const;
 	void drawTrack(cv::Mat &img) const;
+
+    // TEST UTILS
+    void keyFileOpen(void);
+    void keyFileClose(void);
+    void writeKey(std::string cmd_name);
+    void readKey(int &key);
 
 private:
 	CCam mCam;			//!< camera
@@ -124,4 +130,9 @@ private:
 	};
 	std::vector<button> mvButton;	//!< for button input
 	int mMouse;						//!< for mouse input
+
+    // TEST UTILS
+    std::string key_fname = "key_seq.txt";
+    std::ifstream read_key_fs;
+    std::ofstream write_key_fs;
 };
